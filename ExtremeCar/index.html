@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mi Primer Juego de Carreras</title>
+    <style>
+        body {
+            margin: 0;
+            background: #222;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            border: 4px solid #fff;
+            background: #333;
+        }
+        #score {
+            position: absolute;
+            top: 20px;
+            font-size: 24px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="score">Puntos: 0</div>
+    <canvas id="gameCanvas" width="400" height="600"></canvas>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+        const scoreElement = document.getElementById("score");
+
+        // Configuración del jugador
+        const player = {
+            x: 180,
+            y: 500,
+            width: 40,
+            height: 70,
+            speed: 5
+        };
+
+        // Configuración del coche enemigo
+        const enemy = {
+            x: Math.random() * (canvas.width - 40),
+            y: -100,
+            width: 40,
+            height: 70,
+            speed: 4
+        };
+
+        let score = 0;
+        let keys = {};
+
+        // Detectar teclas presionadas
+        window.addEventListener("keydown", (e) => keys[e.code] = true);
+        window.addEventListener("keyup", (e) => keys[e.code] = false);
+
+        // Bucle principal del juego
+        function update() {
+            // Movimiento del jugador
+            if (keys["ArrowLeft"] && player.x > 0) player.x -= player.speed;
+            if (keys["ArrowRight"] && player.x < canvas.width - player.width) player.x += player.speed;
+
+            // Movimiento del enemigo
+            enemy.y += enemy.speed;
+
+            // Si el enemigo sale de la pantalla, reaparece arriba
+            if (enemy.y > canvas.height) {
+                enemy.y = -100;
+                enemy.x = Math.random() * (canvas.width - enemy.width);
+                score++;
+                scoreElement.innerText = "Puntos: " + score;
+                enemy.speed += 0.2; // Aumenta la dificultad lentamente
+            }
+
+            // Detección de colisiones (Caja de colisión AABB)
+            if (player.x < enemy.x + enemy.width &&
+                player.x + player.width > enemy.x &&
+                player.y < enemy.y + enemy.height &&
+                player.y + player.height > enemy.y) {
+                alert("¡Chocaste! Juego terminado. Tu puntuación: " + score);
+                document.location.reload();
+                return;
+            }
+
+            dibujar();
+            requestAnimationFrame(update);
+        }
+
+        // Dibujar elementos en el canvas
+        function dibujar() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Dibujar carretera (línea central discontinua)
+            ctx.strokeStyle = "#fff";
+            ctx.lineWidth = 5;
+            ctx.setLineDash([20, 20]);
+            ctx.beginPath();
+            ctx.moveTo(canvas.width / 2, 0);
+            ctx.lineTo(canvas.width / 2, canvas.height);
+            ctx.stroke();
+
+            // Dibujar jugador (Coche Azul)
+            ctx.fillStyle = "#00a2ff";
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+
+            // Dibujar enemigo (Coche Rojo)
+            ctx.fillStyle = "#ff2200";
+            ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+        }
+
+        // Iniciar el juego
+        update();
+    </script>
+</body>
+</html>
