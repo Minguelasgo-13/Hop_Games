@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Survivors: El Fin del Mundo</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+
+        body {
+            background-color: #0b0c10;
+            color: #fff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
+        }
+
+        #game-container {
+            position: relative;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.8);
+            border-radius: 16px;
+            overflow: hidden;
+            border: 4px solid #1f2833;
+        }
+
+        canvas {
+            display: block;
+            background-color: #121212;
+            cursor: crosshair;
+        }
+
+        #hud {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            padding: 20px;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .bar-container {
+            width: 100%;
+            height: 18px;
+            background-color: rgba(255, 255, 255, 0.08);
+            border-radius: 9px;
+            overflow: hidden;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(6px);
+        }
+
+        #xp-bar {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #00f5d4 0%, #00bbf9 100%);
+            transition: width 0.1s ease-out;
+        }
+
+        #hp-bar {
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, #ff007f 0%, #ff416c 100%);
+            transition: width 0.1s ease-out;
+        }
+
+        .stats-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 16px;
+            font-weight: 900;
+            text-shadow: 2px 2px 5px rgba(0,0,0,0.9);
+            letter-spacing: 1.5px;
+        }
+
+        #level-badge { color: #00f5d4; }
+        #score-badge { color: #fee440; }
+
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(11, 12, 16, 0.93);
+            backdrop-filter: blur(10px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 25px;
+            transition: opacity 0.3s ease;
+            z-index: 10;
+        }
+
+        .overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        h1 {
+            font-size: 48px;
+            text-transform: uppercase;
+            letter-spacing: 5px;
+            background: linear-gradient(45deg, #00f5d4, #ff007f);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-align: center;
+        }
+
+        p {
+            color: #9599a5;
+            font-size: 16px;
+            text-align: center;
+            max-width: 80%;
+            line-height: 1.6;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #00f5d4 0%, #00bbf9 100%);
+            color: #0b0c10;
+            border: none;
+            padding: 14px 35px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 5px 20px rgba(0, 245, 212, 0.3);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 25px rgba(0, 245, 212, 0.5);
+        }
+
+        /* Contenedor de cartas de nivel */
+        .weapon-card {
+            background: #1f2833;
+            border: 2px solid #00f5d4;
+            padding: 15px;
+            border-radius: 12px;
+            cursor: pointer;
+            text-align: center;
+            width: 200px;
+            transition: 0.2s;
+        }
+        .weapon-card:hover {
+            transform: scale(1.05);
+            background: #2c3540;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+
+        <div id="hud">
+            <div>
+                <div class="stats-row">
+                    <span id="level-badge">NIVEL 1</span>
+                    <span id="boss-timer" style="color: #ff416c;">JEFE EN: 60s</span>
+                    <span id="score-badge">KILLS: 0</span>
+                </div>
+                <div class="bar-container" style="margin-top: 6px;">
+                    <div id="xp-bar"></div>
+                </div>
+            </div>
+            <div class="bar-container">
+                <div id="hp-bar"></div>
+            </div>
+        </div>
+
+        <!-- Pantalla de Inicio -->
+        <div id="start-overlay" class="overlay">
+            <h1>Pixel Survivors</h1>
+            <p>Muévete con <b>WASD / Flechas</b>. Apunta y mantén pulsado el <b>CLICK IZQUIERDO</b>.<br>Selecciona tu arma inicial para comenzar:</p>
+            <div class="btn-group">
+                <div class="weapon-card" onclick="iniciarPartida('Rifle')">
+                    <h3>Rifle Láser</h3>
+                    <p style="font-size:12px; margin:5px 0 0 0;">Tiro rápido y preciso.</p>
+                </div>
+                <div class="weapon-card" onclick="iniciarPartida('Escopeta')">
+                    <h3>Escopeta Caos</h3>
+                    <p style="font-size:12px; margin:5px 0 0 0;">3 metrallazos con dispersión.</p>
+                </div>
+                <div class="weapon-card" onclick="iniciarPartida('Plasma')">
+                    <h3>Plasma Pesado</h3>
+                    <p style="font-size:12px; margin:5px 0 0 0;">Lento pero con daño gigante.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Menú de Subida de Nivel (Subir potencia de armas) -->
+        <div id="levelup-overlay" class="overlay hidden">
+            <h1>¡NIVEL UP!</h1>
+            <p>Mejora los sistemas de tu armamento:</p>
+            <div class="btn-group">
+                <button class="btn" onclick="seleccionarMejora('daño')">+25% Daño</button>
+                <button class="btn" onclick="seleccionarMejora('cadencia')">+20% Velocidad Disparo</button>
+                <button class="btn" onclick="seleccionarMejora('velocidad')">+15% Movimiento Héroe</button>
+            </div>
+        </div>
+
+        <!-- Pantalla de Game Over -->
+        <div id="gameover-overlay" class="overlay hidden">
+            <h1 id="gameover-title">Fin de la Partida</h1>
+            <p id="final-stats">Sobreviviste 0 segundos.</p>
+            <button class="btn" id="restart-btn" onclick="location.reload()">VOLVER AL MENÚ</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const VIEW_WIDTH = 960;
+        const VIEW_HEIGHT = 540;
+        canvas.width = VIEW_WIDTH;
+        canvas.height = VIEW_HEIGHT;
+
+        const keys = {};
+        const mouse = { x: 0, y: 0, isDown: false };
+
+        window.addEventListener('keydown', e => keys[e.code] = true);
+        window.addEventListener('keyup', e => keys[e.code] = false);
+        canvas.addEventListener('mousemove', e => {
+            const rect = canvas.getBoundingClientRect();
+            mouse.x = e.clientX - rect.left;
+            mouse.y = e.clientY - rect.top;
+        });
+        canvas.addEventListener('mousedown', e => { if(e.button === 0) mouse.isDown = true; });
+        canvas.addEventListener('mouseup', e => { if(e.button === 0) mouse.isDown = false; });
+
+        const camara = { x: 0, y: 0 };
+
+        // --- SISTEMAS DE JUGADOR ---
+        class Jugador {
+            constructor(armaInicial) {
+                this.x = 0;
+                this.y = 0;
+                this.r = 15;
+                this.speed = 4.5;
+                this.maxHp = 100;
+                this.hp = 100;
+                this.level = 1;
+                this.xp = 0;
+                this.xpNeeded = 15;
+                this.shootCooldown = 0;
+                
+                // Configuración de Armas
+                this.arma = armaInicial; 
+                this.dañoModificador = 1.0;
+                this.cadenciaModificador = 1.0;
+            }
+
+            actualizar() {
+                let dx = 0, dy = 0;
+                if (keys['KeyW'] || keys['ArrowUp']) dy -= 1;
+                if (keys['KeyS'] || keys['ArrowDown']) dy += 1;
+                if (keys['KeyA'] || keys['ArrowLeft']) dx -= 1;
+                if (keys['KeyD'] || keys['ArrowRight']) dx += 1;
+
+                if (dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
+
+                this.x += dx * this.speed;
+                this.y += dy * this.speed;
+
+                if (this.shootCooldown > 0) this.shootCooldown--;
+
+                if (mouse.isDown && this.shootCooldown === 0 && juegoActivo) {
+                    this.disparar();
+                }
+            }
+
+            disparar() {
+                const objX = mouse.x + camara.x;
+                const objY = mouse.y + camara.y;
+
+                if (this.arma === 'Rifle') {
+                    listaProyectiles.push(new Proyectil(this.x, this.y, objX, objY, 20 * this.dañoModificador, 12, 4));
+                    this.shootCooldown = Math.max(3, 7 / this.cadenciaModificador);
+                } 
+                else if (this.arma === 'Escopeta') {
+                    const anguloBase = Math.atan2(objY - this.y, objX - this.x);
+                    // Dispara 3 perdigones en abanico
+                    for(let i = -1; i <= 1; i++) {
+                        let anguloPerdigon = anguloBase + (i * 0.2);
+                        listaProyectiles.push(new Proyectil(this.x, this.y, this.x + Math.cos(anguloPerdigon), this.y + Math.sin(anguloPerdigon), 15 * this.dañoModificador, 9, 6));
+                    }
+                    this.shootCooldown = Math.max(10, 25 / this.cadenciaModificador);
+                } 
+                else if (this.arma === 'Plasma') {
+                    listaProyectiles.push(new Proyectil(this.x, this.y, objX, objY, 60 * this.dañoModificador, 6, 12, '#00bbf9'));
+                    this.shootCooldown = Math.max(20, 45 / this.cadenciaModificador);
+                }
+            }
+
+            dibujar() {
+                ctx.save();
+                ctx.shadowBlur = 15;
+                ctx.shadowColor = '#00bbf9';
+                ctx.fillStyle = '#00f5d4';
+                ctx.beginPath();
+                ctx.arc(this.x - camara.x, this.y - camara.y, this.r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        // --- SISTEMAS DE ENEMIGOS ---
+        class Enemigo {
+            constructor(x, y, level, esJefe = false) {
+                this.x = x;
+                this.y = y;
+                this.esJefe = esJefe;
+                this.r = esJefe ? 45 : (11 + Math.random() * 4);
+                this.speed = esJefe ? 1.2 : (1.6 + (Math.random() * 0.4) + (level * 0.05));
+                this.hp = esJefe ? (500 + level * 200) : (20 + (level * 6));
+                this.color = esJefe ? '#ff0055' : ['#ff007f', '#9b59b6', '#ff416c'][Math.floor(Math.random() * 3)];
+            }
+
+            actualizar(pX, pY) {
+                const angle = Math.atan2(pY - this.y, pX - this.x);
+                this.x += Math.cos(angle) * this.speed;
+                this.y += Math.sin(angle) * this.speed;
+            }
+
+            dibujar() {
+                ctx.save();
+                ctx.shadowBlur = this.esJefe ? 25 : 10;
+                ctx.shadowColor = this.color;
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x - this.r - camara.x, this.y - this.r - camara.y, this.r * 2, this.r * 2);
+                ctx.restore();
+            }
+        }
+
+        class Proyectil {
+            constructor(startX, startY, targetX, targetY, daño, velocidad, radio, color = '#fee440') {
+                this.x = startX;
+                this.y = startY;
+                this.r = radio;
+                this.speed = velocidad;
+                this.damage = daño;
+                this.color = color;
+                
+                const angle = Math.atan2(targetY - startY, targetX - startX);
+                this.vx = Math.cos(angle) * this.speed;
+                this.vy = Math.sin(angle) * this.speed;
+                this.life = 120;
+            }
+
+            actualizar() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life--;
+            }
+
+            dibujar() {
+                ctx.save();
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = this.color;
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(this.x - camara.x, this.y - camara.y, this.r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class Gema {
+            constructor(x, y, esGrande = false) {
+                this.x = x;
+                this.y = y;
+                this.esGrande = esGrande;
+                this.r = esGrande ? 12 : 6;
+                this.xpValue = esGrande ? 50 : 5;
+            }
+
+            actualizar(pX, pY) {
+                const dx = pX - this.x;
+                const dy = pY - this.y;
+                const dist = Math.sqrt(dx*dx + dy*dy);
+                if (dist < 130) {
+                    this.x += (dx / dist) * 7.5;
+                    this.y += (dy / dist) * 7.5;
+                }
+            }
+
+            dibujar() {
+                ctx.save();
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = this.esGrande ? '#ff0055' : '#00bbf9';
+                ctx.fillStyle = this.esGrande ? '#ff0055' : '#00bbf9';
+                ctx.beginPath();
+                ctx.moveTo(this.x - camara.x, this.y - this.r - camara.y);
+                ctx.lineTo(this.x + this.r - camara.x, this.y - camara.y);
+                ctx.lineTo(this.x - camara.x, this.y + this.r - camara.y);
+                ctx.lineTo(this.x - minX, this.y - camara.y); // Corregido bug matemático visual
+                ctx.lineTo(this.x - this.r - camara.x, this.y - camara.y);
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class Particula {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.size = Math.random() * 4 + 2;
+                const angle = Math.random() * Math.PI * 2;
+                const speed = Math.random() * 4 + 2;
+                this.vx = Math.cos(angle) * speed;
+                this.vy = Math.sin(angle) * speed;
+                this.alpha = 1;
+                this.decay = Math.random() * 0.04 + 0.02;
+                this.color = color;
+            }
+            actualizar() { this.x += this.vx; this.y += this.vy; this.alpha -= this.decay; }
+            dibujar() {
+                ctx.save(); ctx.globalAlpha = this.alpha; ctx.fillStyle = this.color;
+                ctx.fillRect(this.x - camara.x, this.y - camara.y, this.size, this.size); ctx.restore();
+            }
+        }
+
+        class TextoFlotante {
+            constructor(x, y, texto, color) {
+                this.x = x; this.y = y; this.texto = texto; this.color = color; this.vy = -1.5; this.alpha = 1; this.life = 30;
+            }
+            actualizar() { this.y += this.vy; this.life--; this.alpha = this.life / 30; }
+            dibujar() {
+                ctx.save(); ctx.globalAlpha = this.alpha; ctx.fillStyle = this.color; ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
+                ctx.fillText(this.texto, this.x - camara.x, this.y - camara.y); ctx.restore();
+            }
+        }
+
+        // --- SISTEMAS DE CONTROL ---
+        let jugador;
+        let listaEnemigos = [];
+        let listaProyectiles = [];
+        let listaGemas = [];
+        let listaParticulas = [];
+        let listaTextos = [];
+        
+        let ticksTotales = 0;
+        let enemigosDerrotados = 0;
+        let screenShakeTime = 0;
+        let screenShakeIntensity = 0;
+        let juegoActivo = false;
+        let proximoBossTicks = 3600; // 60 segundos * 60 fps
+
+        function iniciarPartida(armaElegida) {
+            jugador = new Jugador(armaElegida);
+            listaEnemigos = [];
+            listaProyectiles = [];
+            listaGemas = [];
+            listaParticulas = [];
+            listaTextos = [];
+            ticksTotales = 0;
+            enemigosDerrotados = 0;
+            proximoBossTicks = 3600;
+
+            document.getElementById('start-overlay').classList.add('hidden');
+            juegoActivo = true;
+            loop();
+        }
+
+        function triggerShake(duration, intensity) {
+            screenShakeTime = duration;
+            screenShakeIntensity = intensity;
+        }
+
+        function spawnEnemigoHorda() {
+            const angulo = Math.random() * Math.PI * 2;
+            const x = jugador.x + Math.cos(angulo) * 600;
+            const y = jugador.y + Math.sin(angulo) * 600;
+            listaEnemigos.push(new Enemigo(x, y, jugador.level, false));
+        }
+
+        function spawnJefe() {
+            const angulo = Math.random() * Math.PI * 2;
+            const x = jugador.x + Math.cos(angulo) * 650;
+            const y = jugador.y + Math.sin(angulo) * 650;
+            listaEnemigos.push(new Enemigo(x, y, jugador.level, true));
+            listaTextos.push(new TextoFlotante(jugador.x, jugador.y - 40, "¡ALERTA: JEFE INVOCADO!", '#ff0055'));
+            triggerShake(40, 12);
+        }
+
+        function actualizarHUD() {
+            document.getElementById('hp-bar').style.width = `${Math.max(0, (jugador.hp / jugador.maxHp) * 100)}%`;
+            document.getElementById('xp-bar').style.width = `${(jugador.xp / jugador.xpNeeded) * 100}%`;
+            document.getElementById('level-badge').innerText = `NIVEL ${jugador.level}`;
+            document.getElementById('score-badge').innerText = `KILLS: ${enemigosDerrotados}`;
+            
+            let segundosRestantes = Math.ceil((proximoBossTicks - ticksTotales) / 60);
+            document.getElementById('boss-timer').innerText = segundosRestantes > 0 ? `JEFE EN: ${segundosRestantes}s` : "¡ZONA DE JEFE!";
+        }
+
+        function abrirMenuMejora() {
+            juegoActivo = false;
+            document.getElementById('levelup-overlay').classList.remove('hidden');
+        }
+
+        function seleccionarMejora(tipo) {
+            if (tipo === 'daño') jugador.dañoModificador += 0.25;
+            if (tipo === 'cadencia') jugador.cadenciaModificador += 0.20;
+            if (tipo === 'velocidad') jugador.speed += 0.6;
+
+            document.getElementById('levelup-overlay').classList.add('hidden');
+            juegoActivo = true;
+            loop(); // Reanudar bucle
+        }
+
+        function finalizarJuego(victoria = false) {
+            juegoActivo = false;
+            document.getElementById('gameover-title').innerText = victoria ? "¡VICTORIA ABSOLUTA!" : "Has Caído";
+            document.getElementById('gameover-title').style.background = victoria ? "linear-gradient(45deg, #00f5d4, #fee440)" : "linear-gradient(45deg, #ff416c, #ff007f)";
+            document.getElementById('final-stats').innerText = `Eliminaste ${enemigosDerrotados} enemigos en ${(ticksTotales / 60).toFixed(1)} segundos.`;
+            document.getElementById('gameover-overlay').classList.remove('hidden');
+        }
+
+        // --- MOTOR LOOP PRINCIPAL ---
+        function loop() {
+            if (!juegoActivo) return;
+
+            ticksTotales++;
+
+            // Spawneo progresivo masivo
+            let tasaSpawn = Math.max(3, 18 - jugador.level);
+            if (ticksTotales % tasaSpawn === 0) {
+                let hordas = 1 + Math.floor(ticksTotales / 1200);
+                for(let i=0; i<hordas; i++) spawnEnemigoHorda();
+            }
+
+            // Control de tiempo del Jefe
+            if (ticksTotales >= proximoBossTicks) {
+                spawnJefe();
+                proximoBossTicks = ticksTotales + 3600; // Siguiente jefe en 60s
+            }
+
+            jugador.actualizar();
+
+            // Lerp Cámara
+            camara.x += (jugador.x - VIEW_WIDTH / 2 - camara.x) * 0.1;
+            camara.y += (jugador.y - VIEW_HEIGHT / 2 - camara.y) * 0.1;
+
+            // Balas
+            for (let j = listaProyectiles.length - 1; j >= 0; j--) {
+                let p = listaProyectiles[j];
+                p.actualizar();
+                if (p.life <= 0) listaProyectiles.splice(j, 1);
+            }
+
+            // Gemas
+            for (let g = listaGemas.length - 1; g >= 0; g--) {
+                let gem = listaGemas[g];
+                gem.actualizar(jugador.x, jugador.y);
+                if (Math.hypot(gem.x - jugador.x, gem.y - jugador.y) < jugador.r + gem.r) {
+                    jugador.xp += gem.xpValue;
+                    listaTextos.push(new TextoFlotante(gem.x, gem.y, `+${gem.xpValue} XP`, '#fee440'));
+                    listaGemas.splice(g, 1);
+
+                    if (jugador.xp >= jugador.xpNeeded) {
+                        jugador.xp = 0;
+                        jugador.level++;
+                        jugador.xpNeeded = Math.floor(jugador.xpNeeded * 1.35);
+                        actualizarHUD();
+                        abrirMenuMejora();
+                        return; // Detiene el bucle para el menú
+                    }
+                    actualizarHUD();
+                }
+            }
+
+            // SOLUCIÓN AL BUG DE DESAPARECER TODO: Manejo separado y seguro de muerte de enemigos
+            for (let i = listaEnemigos.length - 1; i >= 0; i--) {
+                let e = listaEnemigos[i];
+                e.actualizar(jugador.x, jugador.y);
+
+                // Daño al jugador
+                if (Math.hypot(e.x - jugador.x, e.y - jugador.y) < jugador.r + e.r) {
+                    jugador.hp -= e.esJefe ? 1.5 : 0.6;
+                    if (ticksTotales % 15 === 0) {
+                        triggerShake(6, 4);
+                        listaTextos.push(new TextoFlotante(jugador.x, jugador.y - 20, "-HP", '#ff007f'));
+                    }
+                    actualizarHUD();
+                    if (jugador.hp <= 0) {
+                        finalizarJuego(false);
+                        return;
+                    }
+                }
+
+                // Impacto de Balas (Sin romper el array)
+                let enemigoMuerto = false;
+                for (let j = listaProyectiles.length - 1; j >= 0; j--) {
+                    let p = listaProyectiles[j];
+                    if (Math.hypot(p.x - e.x, p.y - e.y) < e.r + p.r) {
+                        e.hp -= p.damage;
+                        listaTextos.push(new TextoFlotante(e.x, e.y, `-${Math.floor(p.damage)}`, '#ffffff'));
+                        listaProyectiles.splice(j, 1); // Quitar bala
+
+                        if (e.hp <= 0) {
+                            enemigoMuerto = true;
+                            break;
+                        }
+                    }
+                }
+
+                // Procesar la muerte fuera del bucle de balas para evitar fallos de renderizado
+                if (enemigoMuerto) {
+                    enemigosDerrotados++;
+                    for (let k = 0; k < (e.esJefe ? 40 : 8); k++) {
+                        listaParticulas.push(new Particula(e.x, e.y, e.color));
+                    }
+                    listaGemas.push(new Gema(e.x, e.y, e.esJefe));
+                    
+                    if (e.esJefe) {
+                        listaTextos.push(new TextoFlotante(e.x, e.y, "¡JEFE DESTRUIDO!", '#00f5d4'));
+                        // Si vences a 3 jefes, ganas la partida automáticamente
+                        if(enemigosDerrotados >= 200) {
+                            finalizarJuego(true);
+                            return;
+                        }
+                    }
+                    
+                    listaEnemigos.splice(i, 1); // Quitar enemigo de forma segura
+                    actualizarHUD();
+                }
+            }
+
+            // Animaciones decorativas
+            for (let i = listaParticulas.length - 1; i >= 0; i--) {
+                listaParticulas[i].actualizar();
+                if (listaParticulas[i].alpha <= 0) listaParticulas.splice(i, 1);
+            }
+            for (let i = listaTextos.length - 1; i >= 0; i--) {
+                listaTextos[i].actualizar();
+                if (listaTextos[i].life <= 0) listaTextos.splice(i, 1);
+            }
+
+            // --- RENDER ---
+            ctx.clearRect(0, 0, VIEW_WIDTH, VIEW_HEIGHT);
+            ctx.save();
+            if (screenShakeTime > 0) {
+                ctx.translate((Math.random() - 0.5) * screenShakeIntensity, (Math.random() - 0.5) * screenShakeIntensity);
+                screenShakeTime--;
+            }
+
+            // Rejilla modular
+            ctx.strokeStyle = '#1d1e22';
+            ctx.lineWidth = 1;
+            const size = 60;
+            for (let x = -camara.x % size; x < VIEW_WIDTH; x += size) {
+                ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, VIEW_HEIGHT); ctx.stroke();
+            }
+            for (let y = -camara.y % size; y < VIEW_HEIGHT; y += size) {
+                ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(VIEW_WIDTH, y); ctx.stroke();
+            }
+
+            listaGemas.forEach(g => g.dibujar());
+            listaEnemigos.forEach(e => e.dibujar());
+            listaProyectiles.forEach(p => p.dibujar());
+            listaParticulas.forEach(p => p.dibujar());
+            jugador.dibujar();
+            listaTextos.forEach(t => t.dibujar());
+
+            ctx.restore();
+            actualizarHUD();
+
+            requestAnimationFrame(loop);
+        }
+    </script>
+</body>
+</html>
